@@ -6,5 +6,5 @@ use Illuminate\Database\Eloquent\Model;
 
 class Buoy extends Model
 {
-    //
+    protected $guarded = [];
 }

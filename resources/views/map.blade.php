@@ -1,300 +1,480 @@
 <x-app-layout>
     @push('head')
         <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
-
+        <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
         <style>
-            :root {
-                --bg: #eef2f7;
-                --topbar: #0f172a;
-                --card: rgba(255, 255, 255, 0.95);
-                --accent: #2563eb;
-                --danger: #dc2626;
-                --muted: #6b7280;
-            }
-
-            body {
-                margin: 0;
-                background: var(--bg);
-            }
-
-            .topbar {
+            /* Reset Layout for Full Screen Map */
+            .map-wrapper {
+                position: relative;
+                height: calc(100vh - 65px);
+                /* Adjust for nav height */
                 width: 100%;
-                padding: 14px 22px;
-                background: var(--topbar);
-                color: #fff;
-                font-size: 20px;
-                font-weight: 700;
-                box-shadow: 0 4px 18px rgba(2, 6, 23, 0.35);
-                z-index: 2000;
-            }
-
-            .map-wrap {
-                display: grid;
-                grid-template-columns: 1fr 330px;
-                gap: 14px;
-                padding: 12px;
-                height: calc(100vh - 70px);
-                box-sizing: border-box;
+                overflow: hidden;
+                font-family: 'Inter', sans-serif;
             }
 
             #map {
-                width: 100%;
                 height: 100%;
-                border-radius: 10px;
+                width: 100%;
+                z-index: 0;
+            }
+
+            /* Floating Glass Panels */
+            .glass-panel {
+                background: rgba(255, 255, 255, 0.9);
+                backdrop-filter: blur(12px);
+                -webkit-backdrop-filter: blur(12px);
+                border: 1px solid rgba(255, 255, 255, 0.5);
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+                border-radius: 16px;
+            }
+
+            /* Floating Header */
+            .map-header {
+                position: absolute;
+                top: 20px;
+                left: 20px;
+                z-index: 1000;
+                padding: 12px 20px;
+                display: flex;
+                align-items: center;
+                gap: 12px;
+            }
+
+            /* Floating Sidebar */
+            .map-sidebar {
+                position: absolute;
+                top: 20px;
+                right: 20px;
+                width: 320px;
+                max-height: calc(100% - 40px);
+                z-index: 1000;
+                display: flex;
+                flex-direction: column;
                 overflow: hidden;
             }
 
-            .panel {
-                background: var(--card);
-                padding: 16px;
-                border-radius: 14px;
-                box-shadow: 0 8px 18px rgba(0, 0, 0, 0.08);
-                overflow-y: auto;
+            .sidebar-header {
+                padding: 16px 20px;
+                border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
             }
 
-            .panel h3 {
-                margin-bottom: 10px;
-                font-size: 17px;
-                font-weight: 700;
+            .sidebar-content {
+                overflow-y: auto;
+                padding: 10px;
+                flex: 1;
+            }
+
+            /* Buoy List Items */
+            .buoy-item {
+                background: white;
+                border-radius: 12px;
+                padding: 12px;
+                margin-bottom: 8px;
+                cursor: pointer;
+                transition: all 0.2s ease;
+                border: 1px solid transparent;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.02);
+            }
+
+            .buoy-item:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+                border-color: #3b82f6;
+            }
+
+            .buoy-status-dot {
+                height: 8px;
+                width: 8px;
+                border-radius: 50%;
+                display: inline-block;
+                margin-right: 6px;
+            }
+
+            /* Layer Controls */
+            .layer-controls {
+                position: absolute;
+                bottom: 30px;
+                left: 50%;
+                transform: translateX(-50%);
+                z-index: 1000;
+                padding: 6px;
+                display: flex;
+                gap: 6px;
+            }
+
+            .layer-btn {
+                padding: 8px 16px;
+                border-radius: 10px;
+                font-size: 13px;
+                font-weight: 600;
+                color: #64748b;
+                background: transparent;
+                border: none;
+                cursor: pointer;
+                transition: all 0.2s;
+            }
+
+            .layer-btn:hover {
+                background: rgba(0, 0, 0, 0.05);
                 color: #0f172a;
             }
 
-            .buoy-item {
-                padding: 10px;
-                border-radius: 12px;
+            .layer-btn.active {
                 background: #fff;
-                border: 1px solid rgba(0, 0, 0, 0.05);
-                margin-bottom: 8px;
+                color: #3b82f6;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
             }
 
-            .warning {
+            /* Warning Box */
+            .warning-overlay {
                 position: absolute;
-                top: 80px;
+                top: 100px;
                 left: 50%;
                 transform: translateX(-50%);
-                background: var(--danger);
-                color: white;
-                padding: 12px 18px;
-                border-radius: 12px;
-                font-weight: 700;
+                z-index: 1000;
+                background: #fee2e2;
+                color: #991b1b;
+                padding: 12px 24px;
+                border-radius: 50px;
+                font-weight: 600;
+                box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
                 display: none;
-                z-index: 3000;
+                animation: pulse-red 2s infinite;
+                border: 1px solid #fecaca;
             }
 
-            .ship-pill {
+            @keyframes pulse-red {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4);
+                }
+
+                70% {
+                    box-shadow: 0 0 0 10px rgba(220, 38, 38, 0);
+                }
+
+                100% {
+                    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+                }
+            }
+
+            /* Custom Scrollbar */
+            .sidebar-content::-webkit-scrollbar {
+                width: 4px;
+            }
+
+            .sidebar-content::-webkit-scrollbar-thumb {
+                background: #cbd5e1;
+                border-radius: 2px;
+            }
+
+            /* Ship Info Overlay */
+            .ship-info-card {
                 position: absolute;
-                bottom: 26px;
-                left: 22px;
-                background: rgba(255, 255, 255, 0.95);
-                padding: 14px 18px;
-                border-radius: 14px;
-                box-shadow: 0 8px 20px rgba(0, 0, 0, 0.08);
-                z-index: 2500;
+                bottom: 30px;
+                left: 30px;
+                z-index: 1000;
+                padding: 16px;
+                min-width: 200px;
             }
         </style>
     @endpush
 
+    <div class="map-wrapper">
 
-    <!-- TOPBAR -->
-    <div class="topbar">Digital Buoy Monitoring</div>
-
-    <!-- WARNING -->
-    <div class="warning" id="warningBox">Kamu memasuki area bahaya</div>
-
-    <div class="map-wrap">
-
-        <!-- MAP -->
-        <div id="map"></div>
-
-        <!-- RIGHT PANEL -->
-        <div class="panel" id="statusPanel">
-            <h3>Status Buoy</h3>
-            <ul id="buoyList"></ul>
-
-            <hr class="my-3">
-
-            <h3>Peta Layers</h3>
-            <ul class="controls layer-list">
-                <li>
-                    <button class="btn-primary" onclick="setLayer('default')">Default Map</button>
-                </li>
-                <li>
-                    <button class="btn-ghost" onclick="setLayer('night')">Night Mode</button>
-                </li>
-                <li>
-                    <button class="btn-ghost" onclick="setLayer('satellite')">Satellite</button>
-                </li>
-                <li>
-                    <button class="btn-ghost" onclick="setLayer('marine')">Marine Map</button>
-                </li>
-            </ul>
+        <!-- Floating Header -->
+        <div class="glass-panel map-header">
+            <div class="p-2 bg-blue-600 rounded-lg text-white shadow-lg shadow-blue-600/20">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+                </svg>
+            </div>
+            <div>
+                <h1 class="text-sm font-bold text-slate-800 leading-tight">Live Monitor</h1>
+                <div class="flex items-center gap-2 mt-0.5" id="connectionStatus">
+                    <span class="relative flex h-2 w-2">
+                        <span
+                            class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"
+                            id="statusPing"></span>
+                        <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" id="statusDot"></span>
+                    </span>
+                    <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider"
+                        id="statusText">System Online</span>
+                </div>
+            </div>
         </div>
 
+        <!-- Warning Overlay -->
+        <div id="warningBox" class="warning-overlay">
+            <div class="flex items-center gap-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                <span>Peringatan Bahaya: Kapal berada di zona terlarang</span>
+            </div>
+        </div>
+
+        <!-- Ship Info Card -->
+        <div class="glass-panel ship-info-card">
+            <div class="flex items-center gap-3 mb-2">
+                <div class="p-1.5 bg-indigo-100 text-indigo-600 rounded-md">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                </div>
+                <span class="text-xs font-bold text-slate-500 uppercase">Tracking Kapal</span>
+            </div>
+            <div id="shipCoords">
+                <p class="text-sm font-medium text-slate-800">Sinyal Kapal Tidak Aktif</p>
+                <p class="text-xs text-slate-400 mt-1">Menunggu Data...</p>
+            </div>
+        </div>
+
+        <!-- Map Container -->
+        <div id="map"></div>
+
+        <!-- Layer Controls -->
+        <div class="glass-panel layer-controls">
+            <button class="layer-btn active" onclick="setLayer('default', this)">Standard</button>
+            <button class="layer-btn" onclick="setLayer('satellite', this)">Satellite</button>
+            <button class="layer-btn" onclick="setLayer('marine', this)">Marine</button>
+            <button class="layer-btn" onclick="setLayer('dark', this)">Dark</button>
+        </div>
+
+        <!-- Floating Sidebar -->
+        <aside class="glass-panel map-sidebar">
+            <div class="sidebar-header">
+                <h3 class="font-bold text-slate-800">Active Buoys</h3>
+                <span class="text-xs font-medium text-slate-500 bg-slate-100 px-2 py-1 rounded-full"
+                    id="buoyCount">0</span>
+            </div>
+            <div class="sidebar-content">
+                <ul id="buoyList" class="space-y-2">
+                    <!-- Buoy items injected here -->
+                    <div class="text-center py-8 text-slate-400 text-sm">Loading Bouy</div>
+                </ul>
+            </div>
+        </aside>
 
     </div>
-
-    <!-- SHIP PILL -->
-    <div class="ship-pill">
-        <div style="font-weight:700;">Posisi Kapal</div>
-        <div id="shipCoords">Lat: -, Lng: -</div>
-    </div>
-
 
     @push('scripts')
         <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
-
-        <script>
+        <script type="module">
             /* =============================
-                           BASE MAP + LAYERS
-                        ============================= */
-
-            // base / night / satellite gunakan provider yang umum
-            let defaultLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                maxZoom: 19,
-                attribution: '&copy; OpenStreetMap'
-            });
-
-            // ganti night + satellite ke provider yang andal dan tambahkan fallback on error
-            let nightLayer = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
-                maxZoom: 20,
-                attribution: '&copy; CartoDB'
-            });
-
-            // Esri World Imagery (ArcGIS REST) — pastikan {z}/{y}/{x}
-            let satelliteLayer = L.tileLayer(
-                'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-                    maxZoom: 19,
-                    attribution: 'Esri'
-                });
-
-            // helper: jika terjadi banyak tileerror, fallback ke default supaya tidak putih
-            function enableTileErrorFallback(layer, name) {
-                let errors = 0;
-                layer.on('tileerror', (e) => {
-                    errors++;
-                    console.error(`[tileerror] ${name}`, e.tile && e.tile.src, errors);
-                    // jika lebih dari 6 tile error dalam 2 detik anggap provider bermasalah
-                    setTimeout(() => {
-                        errors = Math.max(0, errors - 6);
-                    }, 2000);
-                    if (errors > 6) {
-                        console.warn(`${name} gagal banyak, fallback ke default`);
-                        setLayer('default');
-                        errors = 0;
-                    }
-                });
-            }
-
+                                                                                                                                                       MAP CONFIGURATION
+                                                                                                                                                    ============================= */
             const map = L.map('map', {
-                layers: [defaultLayer]
+                zoomControl: false,
+                attributionControl: false
             }).setView([-6.2, 106.8], 13);
 
-            // buat pane khusus untuk seamark supaya selalu di atas base tiles
-            map.createPane('seamarkPane');
-            map.getPane('seamarkPane').style.zIndex = 650;
+            L.control.zoom({
+                position: 'bottomright'
+            }).addTo(map);
 
-            let marineLayer = L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
-                pane: 'seamarkPane',
-                opacity: 0.95,
-                attribution: 'OpenSeaMap'
-            });
+            // Layers
+            const layers = {
+                default: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                    maxZoom: 19
+                }),
+                dark: L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png', {
+                    maxZoom: 20
+                }),
+                satellite: L.tileLayer(
+                    'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        maxZoom: 19
+                    }),
+                marine: L.tileLayer('https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png', {
+                    opacity: 1
+                })
+            };
 
-            function setLayer(type) {
-                console.log('setLayer called ->', type);
+            // Initialize default
+            layers.default.addTo(map);
 
-                // hapus hanya base/overlay tiles, biarkan marker/circle
-                [defaultLayer, nightLayer, satelliteLayer].forEach(l => {
-                    if (map.hasLayer(l)) map.removeLayer(l);
-                });
-                if (map.hasLayer(marineLayer)) map.removeLayer(marineLayer);
+            // Layer Switcher
+            window.setLayer = function(type, btn) {
+                document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
 
-                if (type === 'default') {
-                    map.addLayer(defaultLayer);
-                } else if (type === 'night') {
-                    map.addLayer(nightLayer);
-                } else if (type === 'satellite') {
-                    map.addLayer(satelliteLayer);
-                } else if (type === 'marine') {
-                    // tambahkan base + marine overlay
-                    map.addLayer(defaultLayer);
-                    map.addLayer(marineLayer);
+                // Remove all layers
+                Object.values(layers).forEach(l => map.removeLayer(l));
+
+                // Add selected
+                if (type === 'marine') {
+                    layers.default.addTo(map); // Marine needs a base
+                    layers.marine.addTo(map);
+                } else {
+                    layers[type].addTo(map);
                 }
-
-                // paksa redraw jika perlu
-                setTimeout(() => map.invalidateSize(), 200);
-            }
+            };
 
             /* =============================
-               BUOY + SHIP LOGIC
+               BUOY LOGIC
             ============================= */
-
-            let buoyCircles = {};
             let buoyMarkers = {};
+            let buoyCircles = {};
             let userMarker = null;
 
+            // Custom Icons
             const shipIcon = L.icon({
-                iconUrl: "/assets/icons/transport.png",
-                iconSize: [50, 50],
-                iconAnchor: [25, 25]
+                iconUrl: '/assets/icons/transport.png', // Better ship icon
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
             });
 
             async function loadBuoys() {
-                const res = await fetch("/api/buoys-dummy");
-                return await res.json();
+                try {
+                    const res = await fetch("/api/buoys");
+                    const data = await res.json();
+                    renderBuoys(data);
+                    return data;
+                } catch (e) {
+                    console.error("Failed to load buoys", e);
+                    return [];
+                }
             }
 
-            async function renderBuoys() {
-                const buoys = await loadBuoys();
-                let panelHTML = "";
+            function renderBuoys(buoys) {
+                const list = document.getElementById("buoyList");
+                document.getElementById("buoyCount").innerText = buoys.length;
+
+                if (buoys.length === 0) {
+                    list.innerHTML = '<div class="text-center py-8 text-slate-400 text-sm">No buoys found</div>';
+                    return;
+                }
+
+                let html = "";
 
                 buoys.forEach(b => {
+                    const lat = parseFloat(b.lat);
+                    const lng = parseFloat(b.lng);
+                    const isNormal = b.status === 'normal';
 
-                    /* ==== ANIMASI / SMOOTH POSITION ==== */
-                    let oldPos = buoyMarkers[b.device_id]?.getLatLng();
-                    let newPos = L.latLng(b.lat, b.lng);
-
-                    if (oldPos) {
-                        let step = 0;
-                        let interval = setInterval(() => {
-                            step += 0.1;
-                            let lat = oldPos.lat + (newPos.lat - oldPos.lat) * step;
-                            let lng = oldPos.lng + (newPos.lng - oldPos.lng) * step;
-
-                            buoyMarkers[b.device_id].setLatLng([lat, lng]);
-                            buoyCircles[b.device_id].setLatLng([lat, lng]);
-
-                            if (step >= 1) clearInterval(interval);
-                        }, 50);
-                    }
-
-                    if (!buoyCircles[b.device_id]) {
-                        buoyCircles[b.device_id] = L.circle(newPos, {
-                            radius: b.radius,
-                            color: "#dc2626",
-                            fillColor: "#ef4444",
-                            fillOpacity: 0.28,
-                            weight: 2
-                        }).addTo(map);
-                    } else {
-                        buoyCircles[b.device_id].setRadius(b.radius);
-                    }
-
+                    // Update Map Markers
                     if (!buoyMarkers[b.device_id]) {
-                        buoyMarkers[b.device_id] = L.marker(newPos).addTo(map);
+                        // Create Marker
+                        const marker = L.circleMarker([lat, lng], {
+                            radius: 8,
+                            fillColor: isNormal ? '#10b981' : '#f43f5e',
+                            color: '#fff',
+                            weight: 2,
+                            opacity: 1,
+                            fillOpacity: 1
+                        }).addTo(map);
+
+                        // Create Radius Circle
+                        const circle = L.circle([lat, lng], {
+                            radius: b.radius,
+                            color: isNormal ? '#10b981' : '#f43f5e',
+                            fillColor: isNormal ? '#10b981' : '#f43f5e',
+                            fillOpacity: 0.1,
+                            weight: 1
+                        }).addTo(map);
+
+                        marker.bindPopup(`
+                            <div class="font-sans p-1">
+                                <h3 class="font-bold text-slate-800">${b.name}</h3>
+                                <p class="text-xs text-slate-500">${b.device_id}</p>
+                                <p class="text-xs text-slate-500">${b.status}</p>
+                                <p class="text-xs text-slate-500">${b.lat}</p>
+                                <p class="text-xs text-slate-500">${b.lng}</p>
+                            </div>
+                        `);
+
+                        buoyMarkers[b.device_id] = marker;
+                        buoyCircles[b.device_id] = circle;
+                    } else {
+                        // Update existing
+                        buoyMarkers[b.device_id].setLatLng([lat, lng]);
+                        buoyCircles[b.device_id].setLatLng([lat, lng]);
+                        buoyCircles[b.device_id].setRadius(b.radius);
+
+                        // Update color if status changed
+                        const color = isNormal ? '#10b981' : '#f43f5e';
+                        buoyMarkers[b.device_id].setStyle({
+                            fillColor: color
+                        });
+                        buoyCircles[b.device_id].setStyle({
+                            color: color,
+                            fillColor: color
+                        });
                     }
 
-                    /* PANEL LIST */
-                    panelHTML += `
-            <div class="buoy-item">
-                <div class="meta">
-                    <span class="buoy-name">${b.name}</span>
-                    <span class="buoy-status small">Lat: ${b.lat} | Lng: ${b.lng}</span>
-                </div>
-            </div>
-        `;
+                    // Build List Item
+                    html += `
+                        <li class="buoy-item group" onclick="window.flyToBuoy(${lat}, ${lng})">
+                            <div class="flex justify-between items-start">
+                                <div>
+                                    <h4 class="font-bold text-slate-700 text-sm group-hover:text-blue-600 transition-colors">${b.name}</h4>
+                                    <p class="text-[10px] text-slate-400 font-mono mt-0.5">${b.device_id}</p>
+                                </div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold ${isNormal ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}">
+                                    <span class="w-1.5 h-1.5 rounded-full ${isNormal ? 'bg-emerald-500' : 'bg-rose-500'} mr-1.5"></span>
+                                    ${b.status.toUpperCase()}
+                                </span>
+                            </div>
+                            <div class="mt-2 flex items-center text-[10px] text-slate-400 space-x-3">
+                                <span class="flex items-center">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+                                    ${lat.toFixed(4)}, ${lng.toFixed(4)}
+                                </span>
+                                <span class="flex items-center">
+                                    <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"/></svg>
+                                    ${b.radius}m
+                                </span>
+                            </div>
+                        </li>
+                    `;
                 });
 
-                document.getElementById("buoyList").innerHTML = panelHTML;
+                list.innerHTML = html;
+            }
+
+            window.flyToBuoy = function(lat, lng) {
+                map.flyTo([lat, lng], 16, {
+                    animate: true,
+                    duration: 3
+                });
+            };
+
+            /* =============================
+               SHIP TRACKING
+            ============================= */
+            function updateShip(lat, lng, label = "Unknown Ship") {
+                if (!userMarker) {
+                    userMarker = L.marker([lat, lng], {
+                        icon: shipIcon
+                    }).addTo(map);
+                    userMarker.bindPopup(`<b class="text-sm font-sans">${label}</b>`);
+                    map.flyTo([lat, lng], 14);
+                } else {
+                    userMarker.setLatLng([lat, lng]);
+                    userMarker.setPopupContent(`<b class="text-sm font-sans">${label}</b>`);
+                }
+
+                // Update Info Card
+                const infoEl = document.getElementById("shipCoords");
+                infoEl.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="font-bold text-slate-800 text-sm">${label}</span>
+                        <span class="text-[10px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded font-bold">LIVE</span>
+                    </div>
+                    <div class="text-xs text-slate-500 font-mono">
+                        LAT: ${lat.toFixed(5)} <br>
+                        LNG: ${lng.toFixed(5)}
+                    </div>
+                `;
+
+                checkDanger(lat, lng);
             }
 
             async function checkDanger(lat, lng) {
@@ -302,55 +482,69 @@
                 let danger = false;
 
                 buoys.forEach(b => {
-                    const d = map.distance([lat, lng], [b.lat, b.lng]);
-                    if (d < b.radius) danger = true;
+                    const dist = map.distance([lat, lng], [b.lat, b.lng]);
+                    if (dist < b.radius && b.status === 'warning') danger = true;
                 });
 
-                document.getElementById("warningBox").style.display =
-                    danger ? "block" : "none";
+                const box = document.getElementById("warningBox");
+                box.style.display = danger ? "flex" : "none";
             }
 
-            function updateShip(lat, lng) {
-                if (!userMarker) {
-                    userMarker = L.marker([lat, lng], {
-                        icon: shipIcon
-                    }).addTo(map);
-                } else {
-                    /* smooth animation kapal */
-                    let old = userMarker.getLatLng();
-                    let step = 0;
-                    let target = L.latLng(lat, lng);
+            // Initial Load
+            loadBuoys();
+            setInterval(loadBuoys, 10000);
 
-                    let anim = setInterval(() => {
-                        step += 0.12;
-                        let nl = old.lat + (target.lat - old.lat) * step;
-                        let ng = old.lng + (target.lng - old.lng) * step;
-                        userMarker.setLatLng([nl, ng]);
-                        if (step >= 1) clearInterval(anim);
-                    }, 40);
+            // Realtime Subscription
+            const subscribeToShipUpdates = () => {
+                if (typeof window.Echo === 'undefined') {
+                    console.warn("Echo not ready, retrying in 500ms...");
+                    setTimeout(subscribeToShipUpdates, 500);
+                    return;
                 }
 
-                document.getElementById("shipCoords").innerHTML =
-                    `Lat: ${lat.toFixed(5)}, Lng: ${lng.toFixed(5)}`;
+                console.log("Initializing Reverb connection...");
 
-                checkDanger(lat, lng);
-            }
+                // Debug Connection
+                if (window.Echo.connector && window.Echo.connector.pusher) {
+                    window.Echo.connector.pusher.connection.bind('connected', () => {
+                        console.log('✅ Reverb Connected!');
+                        document.getElementById('statusText').innerText = 'System Online';
+                        document.getElementById('statusDot').className =
+                            'relative inline-flex rounded-full h-2 w-2 bg-emerald-500';
+                        document.getElementById('statusPing').className =
+                            'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+                    });
 
-            /* GEOLOCATION */
-            if (navigator.geolocation) {
-                navigator.geolocation.watchPosition(
-                    (pos) => updateShip(pos.coords.latitude, pos.coords.longitude),
-                    (err) => console.log("GPS error:", err.message), {
-                        enableHighAccuracy: true
-                    }
-                );
-            }
+                    window.Echo.connector.pusher.connection.bind('failed', () => {
+                        console.error('❌ Reverb Connection Failed.');
+                        document.getElementById('statusText').innerText = 'Connection Failed';
+                        document.getElementById('statusDot').className =
+                            'relative inline-flex rounded-full h-2 w-2 bg-red-500';
+                        document.getElementById('statusPing').className = 'hidden';
+                    });
 
-            /* AUTO REFRESH BUOYS */
-            // panggil render sekali saat load supaya tidak harus menunggu interval pertama
-            renderBuoys();
-            setInterval(renderBuoys, 1000);
+                    window.Echo.connector.pusher.connection.bind('disconnected', () => {
+                        console.warn('⚠️ Reverb Disconnected');
+                        document.getElementById('statusText').innerText = 'Reconnecting...';
+                        document.getElementById('statusDot').className =
+                            'relative inline-flex rounded-full h-2 w-2 bg-amber-500';
+                        document.getElementById('statusPing').className = 'hidden';
+                    });
+                }
+
+                window.Echo.leave("ship-location");
+                window.Echo.channel("ship-location")
+                    .listen(".ship.updated", (e) => {
+                        console.log("🚢 Event Received:", e);
+                        if (e.data && e.data.lat && e.data.lng) {
+                            updateShip(parseFloat(e.data.lat), parseFloat(e.data.lng), e.data.label);
+                        } else if (e.lat && e.lng) {
+                            // Handle case where data might be flattened
+                            updateShip(parseFloat(e.lat), parseFloat(e.lng), e.label);
+                        }
+                    });
+            };
+            subscribeToShipUpdates();
         </script>
     @endpush
-
 </x-app-layout>

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
+use App\Models\Buoy;
 
 class BuoyController extends Controller
 {
@@ -31,4 +32,3 @@ class BuoyController extends Controller
         return response()->json(['message' => 'Deleted']);
     }
 }
-
